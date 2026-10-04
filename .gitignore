@@ -31,3 +31,7 @@ Thumbs.db
 # Captures / potentially large or sensitive traffic
 *.pcap
 *.pcapng
+
+
+*run.txt
+*.txt

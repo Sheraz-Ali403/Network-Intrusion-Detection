@@ -1,152 +1,182 @@
-# Network Traffic Monitor + Rule-Based IDS — Semester Roadmap
+# Network Traffic Monitor + Rule-Based IDS — Semester Roadmap (V1)
 
-**Total duration:** 16 weeks
-**Structure:** V1 (offline `.pcap` analysis) is feature-complete and submittable on its own by Week 12. V2 (live capture) and the evasion test suite are additive, not required for a complete grade.
+**Scope:** This roadmap covers **V1 only** — offline `.pcap` file analysis with a rule-based detection engine. This is the full semester deliverable, not a partial version of something bigger due this term.
+
+**Live capture, multithreading, and the producer-consumer pipeline are explicitly out of scope here.** They become a separate, later personal project ("Project 2") once this one is submitted — see the note at the end of this file.
+
+**Total duration:** 16 weeks.
 
 ---
 
-## Phase 0 — Setup & Design Lock (Week 1)
+##  Environment — Already Confirmed Working
 
-**Goal:** Remove every ambiguity before detection logic is written.
+No setup phase needed — this is done and verified:
 
-- [ ] Choose language, repo structure, build system (CMake/Makefile or Python venv)
-- [ ] Study PCAP file format (global header, per-packet record header)
-- [ ] Study Ethernet / IPv4 / TCP / UDP header formats (RFC 791, RFC 793, RFC 768)
+- [x] Windows, 64-bit, personal machine
+- [x] MSYS2 UCRT64 toolchain (GCC/G++)
+- [x] CMake installed and working
+- [x] Npcap + Npcap SDK 1.16 installed
+- [x] PcapPlusPlus built specifically against the UCRT64/MinGW toolchain
+- [x] `Packet++Test.exe` — 264/264 tests passed
+- [x] VS Code configured (IntelliSense + correct compiler path)
+- [x] **Real smoke test passed:** a test program reading `test.pcap` compiles, links, and runs correctly through your own CMake build (not just IntelliSense resolution)
+
+You can start Phase 1 immediately once the learning phase below is underway.
+
+---
+
+## Phase 0 — Foundational Learning (Weeks 1–3)
+
+**Goal:** Close the gap between Array/LinkedList/Stack/Queue/recursion and what the project actually needs. This phase runs in parallel with nothing else — it comes first, deliberately, because every later phase assumes this knowledge is solid.
+
+### Week 1
+- [ ] Hashing & hash tables (collision resolution, load factor, resizing)
+- [ ] Amortized analysis (why resizing doesn't break the O(1) average claim)
+- [ ] Bit manipulation basics (binary/hex arithmetic, AND/OR/shift operations)
+
+### Week 2
+- [ ] Tries (insertion, search, prefix matching)
+- [ ] KMP algorithm (failure function concept — this is the prerequisite Aho-Corasick is built on, don't skip it)
+- [ ] Begin Aho-Corasick (cp-algorithms.com reference, read slowly)
+
+### Week 3
+- [ ] Finish Aho-Corasick (failure links + output links, until it's intuitive, not memorized)
+- [ ] Heaps / priority queues (insert, extract-min, heapify)
+- [ ] Sliding window technique (as a general pattern, before applying it to timestamps)
+
+### Ongoing, parallel to all three weeks above
+- [ ] C++ pointers, stack vs. heap memory, dynamic allocation
+- [ ] Classes, constructors/destructors, RAII
+- [ ] Smart pointers (`std::unique_ptr`) and move semantics
+
+### Right before Phase 2 starts
+- [ ] Networking refresh: TCP three-way handshake and flags in detail, IPv4 header byte layout, PCAP file format spec — do this close to Phase 2, not weeks early, so it's fresh
+
+**Exit criteria:** You can explain, without notes, what a load factor is and why resizing is still O(1) amortized; you can trace how a failure link redirects a mismatched trie walk; you understand why Dijkstra/heap "decrease-key" problems and connection-expiry "lazy invalidation" are the same underlying issue (this one will matter directly in Phase 6).
+
+---
+
+## Phase 1 — Design Lock (Week 4)
+
+**Goal:** No ambiguity left before detection logic is written.
+
 - [ ] Decide rule syntax — Snort-inspired, 3 rule types: `content`, `cidr`, `threshold`
 - [ ] Write `RULE_FORMAT.md` with 5 worked example rules
 - [ ] Write `DESIGN_SPEC.md` answering every item below, in writing
 
-### Design-lock checklist (must be answered before Phase 1)
-- [ ] Hash table: chaining strategy, hash function (FNV-1a), max load factor (0.75), resize policy (2×)
-- [ ] **Connection key normalization:** canonical ordering rule so `A→B` and `B→A` hash to the same entry (e.g., always place the numerically lower `(IP, port)` pair first before hashing)
-- [ ] Aho-Corasick: case-sensitive or normalized? binary-safe or text-only payloads?
-- [ ] Radix trie: IPv4 only for V1 (IPv6 is stretch-only, explicitly out of scope)
-- [ ] Ring buffer (V2): capacity, overflow policy (drop-oldest vs. drop-newest + dropped-packet counter)
-- [ ] Ring buffer synchronization mechanism: mutex + condition variable, or lock-free single-producer/single-consumer atomics — pick one now, don't decide mid-Phase-7
-- [ ] Connection-expiry heap: **lazy invalidation**, not in-place key update (see Phase 5 notes)
-- [ ] TCP state machine scope: explicitly simplified — `NONE → SYN_SENT → ESTABLISHED → FIN_WAIT → CLOSED` only; no `SYN_RECEIVED`, no simultaneous close, no mid-session RST handling. State this as a deliberate scope decision in the final report.
-- [ ] Rule syntax scope: one `content` match per rule for V1 (no AND/OR logic across multiple patterns) — explicit scope limit
-- [ ] "No match" / "no connection found" semantics defined for each subsystem (signature engine, CIDR matcher, connection tracker)
+### Design-lock checklist
+- [ ] Hash table: separate chaining, FNV-1a hash function, 0.75 max load factor, 2× resize policy — built fully from scratch, no `std::unordered_map`
+- [ ] **Connection key normalization:** canonical ordering rule so `A→B` and `B→A` packets hash to the same connection entry
+- [ ] Aho-Corasick: case-insensitive matching by default (attackers routinely evade case-sensitive matchers); payload treated as `(pointer, length)`, never null-terminated string, so embedded null bytes don't silently truncate scanning
+- [ ] Radix trie for CIDR matching: built from scratch, using bitmask-and-compare internally at each node — **not** a flat per-rule bitmask scan (that reintroduces O(R) rule scanning, which defeats the trie's purpose)
+- [ ] Connection-expiry heap: **lazy invalidation**, not in-place key update — push a new `(timestamp, key)` entry on every update, treat the hash table's stored timestamp as authoritative, discard stale heap entries on pop
+- [ ] TCP state machine scope: explicitly simplified — `NONE → SYN_SENT → ESTABLISHED → FIN_WAIT → CLOSED` only. State this as a deliberate scope decision in the final report, not an oversight.
+- [ ] Rule syntax scope: one `content` match per rule for V1 (no AND/OR logic within a single rule)
+- [ ] "No match" / "no connection found" semantics: consistent result-struct pattern (`{bool found; ...}`) across every subsystem — no nulls, no magic sentinel values
 
 **Exit criteria:** You can explain every item above out loud, without checking notes.
 
 ---
 
-## Phase 1 — Packet Parsing Foundation (Weeks 2–3)
+## Phase 2 — Packet Parsing Foundation (Weeks 5–6)
 
 **Goal:** Read a real `.pcap` file and print fully decoded packets. No detection logic yet.
 
-- [ ] `PCAPReader`: parse global header (magic number, version, snaplen), iterate per-packet records (timestamp, captured length, original length, raw bytes)
-- [ ] `EthernetParser`: extract src/dst MAC, EtherType
-- [ ] `IPv4Parser`: extract src/dst IP, protocol field, **handle variable-length IHL/options correctly**, TTL
+- [ ] `PCAPReader`: parse global header, iterate per-packet records (timestamp, captured length, original length, raw bytes)
+- [ ] `EthernetParser`: src/dst MAC, EtherType
+- [ ] `IPv4Parser`: src/dst IP, protocol field, **handle variable-length IHL/options correctly**, TTL
 - [ ] `TCPParser` + `UDPParser`: ports, flags (SYN/ACK/FIN/RST), sequence numbers, payload offset/length
 - [ ] Unit tests against 3–4 known sample `.pcap` files (Wireshark's public sample captures)
-- [ ] **Validate output against Wireshark's decode of the same file** — this is your ground truth
+- [ ] **Validate output against Wireshark's decode of the same file**
 
-**Exit criteria:** Tool output matches Wireshark's decode (src→dst, ports, protocol, flags) for the same sample file.
+**Exit criteria:** Tool output matches Wireshark's decode for the same sample file.
 
 **Risk flag:** Variable-length IPv4 headers and TCP options are the #1 source of silent off-by-one bugs. Budget real time here.
 
 ---
 
-## Phase 2 — Connection Tracking (Weeks 4–5)
+## Phase 3 — Connection Tracking (Weeks 7–8)
 
-**Goal:** Stateful TCP session tracking via a custom hash table.
+**Goal:** Stateful TCP session tracking via your own hash table.
 
-- [ ] `CustomHashTable`: separate chaining, FNV-1a hash over concatenated 5-tuple bytes, 0.75 load factor, 2× resize — unit-tested standalone, independent of networking code
-- [ ] `ConnectionKey` struct: `(src_ip, dst_ip, src_port, dst_port, protocol)` with the **canonical ordering rule locked in Phase 0** applied before hashing
-- [ ] `ConnectionTracker`: hash-table lookup/insert per packet, update simplified TCP state machine
+- [ ] `CustomHashTable`: unit-tested standalone, independent of networking code
+- [ ] `ConnectionKey` struct with the canonical ordering rule from Phase 1 applied before hashing
+- [ ] `ConnectionTracker`: hash-table lookup/insert per packet, update the simplified TCP state machine
 - [ ] Print "N active connections" + per-connection state after processing a `.pcap`
-- [ ] Benchmark: naive linear-scan lookup vs. custom hash table, across 100 / 1,000 / 10,000 synthetic connections — real measured numbers in `benchmarks/`
+- [ ] Benchmark: naive linear-scan lookup vs. custom hash table, across 100 / 1,000 / 10,000 synthetic connections — measured numbers in `benchmarks/`
 
-**Exit criteria:** A `.pcap` with a known number of distinct TCP sessions produces the correct session count and correct final states (completed handshakes vs. incomplete scan attempts).
+**Exit criteria:** A `.pcap` with a known number of distinct TCP sessions produces the correct session count and correct final states.
 
 ---
 
-## Phase 3 — Signature Matching Engine (Weeks 6–8) — Core Deliverable
+## Phase 4 — Signature Matching Engine (Weeks 9–11) — Core Deliverable
 
 **Goal:** Aho-Corasick multi-pattern matching over packet payloads. Do not rush this phase.
 
-- [ ] Build a plain **Trie** of signature strings first — insertion + exact/prefix lookup, fully tested before adding failure links
-- [ ] Add **failure links** (BFS-based construction) and **output links** (a node's own match plus any pattern reachable via its failure chain)
-- [ ] Adversarial test cases for **overlapping patterns** (e.g., `"SHE"`, `"HE"`, `"HERS"` against text `"SHERS"`) before trusting it on real traffic
-- [ ] `RuleParser`: parse the rule file, route `content:"..."` patterns into the automaton at load time, map pattern → rule metadata (msg, sid)
+- [ ] Build a plain **Trie** of signature strings first — fully tested before adding failure links
+- [ ] Add failure links (BFS-based construction) and output links
+- [ ] Adversarial test cases for **overlapping patterns** (e.g., `"SHE"`, `"HE"`, `"HERS"` against `"SHERS"`)
+- [ ] `RuleParser`: parse the rule file, route `content:"..."` patterns into the automaton at load time
 - [ ] Wire automaton into the packet pipeline: every TCP/UDP payload scanned once, `Alert` raised on match
-- [ ] Benchmark: naive per-rule substring search vs. Aho-Corasick, scaling rule count 10 → 500 — gap should visibly widen as rule count grows
+- [ ] Benchmark: naive per-rule substring search vs. Aho-Corasick, scaling rule count 10 → 500
 
-**Exit criteria:** A test `.pcap` with 5 planted signatures (including overlapping ones) produces exactly the 5 expected alerts — no false positives, no missed matches.
+**Exit criteria:** A test `.pcap` with 5 planted signatures (including overlapping ones) produces exactly the 5 expected alerts.
 
-**Risk flag:** A buggy failure-link implementation still produces *plausible-looking* output. The overlapping-pattern test above is mandatory, not optional.
+**Risk flag:** A buggy failure-link implementation still produces plausible-looking output. The overlapping-pattern test above is mandatory.
 
 ---
 
-## Phase 4 — CIDR / IP Rule Matching (Week 9)
+## Phase 5 — CIDR / IP Rule Matching (Week 12)
 
-**Goal:** Radix trie for subnet-based rules.
+**Goal:** Radix trie for subnet-based rules, using bitmask comparisons internally.
 
 - [ ] `RadixTrie` over 32-bit IP keys, insert by prefix length
-- [ ] Unit tests: insert `10.0.0.0/8` and `10.1.0.0/16`, confirm correct **longest-prefix match** for various test IPs
+- [ ] Unit tests: insert `10.0.0.0/8` and `10.1.0.0/16`, confirm correct **longest-prefix match**
 - [ ] Route `cidr`-type rules from the rule file into the trie at load time
 - [ ] Wire into pipeline: check src/dst IP of every packet against the trie
 
-**Exit criteria:** Correct longest-prefix-match behavior with overlapping CIDR rules (e.g., a `/24` alert rule nested inside a `/8`).
+**Exit criteria:** Correct longest-prefix-match behavior with overlapping CIDR rules.
 
 ---
 
-## Phase 5 — Expiry & Rate-Based Detection (Weeks 10–11)
+## Phase 6 — Expiry & Rate-Based Detection (Weeks 13–14)
 
 **Goal:** Behavioral detection — what makes this an IDS, not a signature grep tool.
 
 - [ ] `CustomMinHeap` keyed on last-seen timestamp for connection eviction
-- [ ] **Lazy invalidation pattern (not in-place key update):** on every packet, push a new `(timestamp, connection_key)` entry; the hash table entry holds the authoritative last-seen time. On pop, compare the popped timestamp against the hash table's current value — if stale, discard and pop again. This mirrors the same decrease-key problem solved via lazy deletion in the Dijkstra implementation; same fix, same justification.
-- [ ] Confirm O(log C) per eviction via benchmark (not a full table scan)
-- [ ] Sliding-window rate counters: circular buffer of time buckets per source IP, for `threshold:` rules
-- [ ] **Explicitly test bucket rollover/reset logic** (off-by-one bugs in circular time-bucket indexing are a common failure mode — don't assume it's correct without a dedicated test)
-- [ ] `AlertEngine`: unify signature, CIDR, and rate alerts into one consistent output format (console + JSON log)
+- [ ] **Lazy invalidation** exactly as locked in Phase 1 — push new timestamp entries, never update in place; hash table holds the authoritative value
+- [ ] Confirm O(log C) per eviction via benchmark
+- [ ] Sliding-window rate counters per source IP, using a custom hash table + a small custom list/circular buffer (no `std::deque`)
+- [ ] Explicitly test bucket/window rollover logic — off-by-one bugs here are common
+- [ ] `AlertEngine`: unify signature, CIDR, and rate alerts into one consistent output format
 
-**Exit criteria:** A single `.pcap` run simultaneously triggers a signature alert, a blacklisted-subnet alert, and a port-scan (rate-based) alert — three detection mechanisms, one unified alert stream. **This is the V1 feature-complete milestone.**
+**Exit criteria:** A single `.pcap` run simultaneously triggers a signature alert, a blacklisted-subnet alert, and a rate-based alert — three mechanisms, one unified alert stream. **V1 feature-complete.**
 
 ---
 
-## Phase 6 — V1 Hardening & Report Prep (Week 12)
+## Phase 7 — Hardening, Benchmarking & Report (Week 15)
 
-**Goal:** Polish, document, generate experimental evidence. Safe stopping point.
+**Goal:** Polish, document, generate experimental evidence.
 
-- [ ] Handle edge cases without crashing: empty `.pcap`, truncated packets, malformed headers, non-TCP/UDP protocols (ICMP, etc.)
+- [ ] Handle edge cases without crashing: empty `.pcap`, truncated packets, malformed headers, non-TCP/UDP protocols
 - [ ] Full benchmark suite run and graphed (hash table, Aho-Corasick, heap — naive vs. structured, across increasing input sizes)
 - [ ] `benchmarks/results.md` with tables/graphs
-- [ ] README + architecture diagram + complexity table, written with precise, defensible language (not "O(1) lookup" — the full specified version: collision strategy, hash function, load factor, worst case)
+- [ ] README + architecture diagram + complexity table, written with precise, defensible language (collision strategy, hash function, load factor, worst case — not just "O(1)")
+- [ ] `SCOPE_DECISIONS.md`: one sentence each for every deliberate scope cut (simplified TCP state machine, IPv4-only CIDR, single-pattern rules) — turns limitations into evidence of judgment
 
-**Note:** If time runs short, V1 alone — fully correct, benchmarked, documented — is a complete and gradable project. Do not sacrifice Phase 1–5 quality to rush Phase 7.
-
----
-
-## Phase 7 — V2: Live Capture (Weeks 13–15)
-
-**Goal:** Swap file-based input for live traffic, without modifying the detection engine.
-
-- [ ] Integrate libpcap (Linux) or Npcap (Windows) — thin binding only, not a custom capture implementation
-- [ ] Confirm raw packet count prints correctly from a live interface
-- [ ] `CustomRingBuffer`: bounded circular buffer, producer (capture thread) / consumer (detection engine), using the synchronization mechanism and overflow policy locked in Phase 0
-- [ ] Unit-test the ring buffer in isolation: simulate a fast producer + slow consumer, confirm the overflow policy triggers correctly
-- [ ] Wire capture → ring buffer → **existing, unmodified** `PacketParser` + detection engine
-- [ ] Live test: run `nmap` against a test VM while the tool listens; confirm the port-scan alert fires in real time
-
-**Exit criteria:** A live port scan against a test machine produces a live alert within a second or two, using the exact same detection engine validated in Phases 1–5.
-
-**Risk flag:** This phase bundles three independent hard problems (new library API, thread synchronization, live-traffic testing) — budget the full 3 weeks; don't compress it.
+**Note:** This is a safe, complete submission state. Everything through here is required scope.
 
 ---
 
-## Phase 8 — Offensive-Angle Addition (Week 16, Stretch)
+## Phase 8 — Evasion Test Suite (Week 16)
 
-**Goal:** Add a red-team differentiator on top of the defensive tool.
+**Goal:** The offensive-security differentiator — since V2 is no longer competing for time this semester, this is real, achievable scope now, not a stretch goal.
 
-- [ ] Build a small evasion test script: fragment payloads, split signatures across packet boundaries, encode payloads, throttle scan rate below the detection window threshold
-- [ ] Document which techniques successfully evaded detection and why
-- [ ] `EVASION_FINDINGS.md`: what you'd add to catch each evasion (e.g., TCP stream reassembly, adaptive rate windows)
+- [ ] Build a small script that deliberately tries to evade your own detection: fragment payloads, split signatures across packet boundaries, encode/obfuscate payloads, throttle scan rate below your rate-detection window
+- [ ] Document which techniques succeeded and why
+- [ ] `EVASION_FINDINGS.md`: what you'd add to catch each evasion (e.g., stream reassembly, adaptive rate windows)
 
-This is the strongest interview differentiator in the whole project — it demonstrates attacker-mindset thinking applied against your own defensive control, not just the control itself.
+This is the single strongest interview differentiator in the whole project — it shows attacker-mindset thinking applied against your own defensive tool.
 
 ---
 
@@ -154,16 +184,31 @@ This is the strongest interview differentiator in the whole project — it demon
 
 | Milestone | Week | What's demonstrably working |
 |---|---|---|
-| M1: Packet decode matches Wireshark | 3 | Parsing correctness baseline |
-| M2: Hash-table connection tracking | 5 | First custom DS proven + benchmarked |
-| M3: Aho-Corasick detects planted signatures | 8 | Core DSA + security deliverable |
-| M4: CIDR + rate detection live | 11 | V1 feature-complete |
-| M5: V1 polished, benchmarked, documented | 12 | Safe fallback submission state |
-| M6: Live capture detects a real scan | 15 | Full project complete |
-| M7 (stretch): Evasion findings documented | 16 | Offensive-security differentiator |
+| M0: Core DSA + C++ fundamentals solid | 3 | Ready for implementation |
+| M1: Design spec locked, no open decisions | 4 | Ready to code |
+| M2: Packet decode matches Wireshark | 6 | Parsing correctness baseline |
+| M3: Hash-table connection tracking | 8 | First custom DS proven + benchmarked |
+| M4: Aho-Corasick detects planted signatures | 11 | Core DSA + security deliverable |
+| M5: CIDR + rate detection live | 14 | **V1 feature-complete** |
+| M6: V1 polished, benchmarked, documented | 15 | **Submission-ready** |
+| M7: Evasion findings documented | 16 | Offensive-security differentiator |
 
 ---
 
 ## Weekly Discipline Rule
 
-At the end of every week, you should be able to run the tool against a known `.pcap` and get a deterministic, verifiable result. If you can't, don't start the next phase — in a layered pipeline like this, debugging compounds badly if a lower layer is silently wrong.
+At the end of every week, you should be able to run the tool against a known `.pcap` and get a deterministic, verifiable result. If you can't, don't start the next phase.
+
+---
+
+## Looking Ahead — "Project 2" (Not Part of This Roadmap)
+
+Once V1 is submitted, live capture becomes its own project, picking up where this leaves off:
+
+- Live capture via PcapPlusPlus's live-device APIs
+- Custom bounded ring buffer (producer/consumer), with an explicit overflow policy
+- Thread synchronization (mutex + condition variable first; lock-free SPSC as an optional stretch comparison)
+- Resolving the Windows Device Guard/App Control block for running a live-capture executable (or developing in WSL2/Linux instead, if the block turns out to be policy-enforced rather than user-configurable)
+- Administrator-privilege requirements for live interface access
+
+None of this needs attention until V1 is done.
