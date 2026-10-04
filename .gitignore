@@ -1,0 +1,33 @@
+# Build output
+build/
+out/
+bin/
+
+# Compiled files
+*.exe
+*.obj
+*.o
+*.dll
+*.lib
+*.pdb
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# VS Code machine-specific settings
+.vscode/c_cpp_properties.json
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Captures / potentially large or sensitive traffic
+*.pcap
+*.pcapng
