@@ -10,7 +10,12 @@
 /* 
 Hash Table
 Constructer, Destructor - Done
+rule of three - Done
 KeysEqual - Done
+HashFunction - Done
+etc
+
+
 
 
 
@@ -60,6 +65,10 @@ class HashTable {
 public:
     HashTable(size_t cap = 128);
     ~HashTable();
+
+    //Copy constructor and assignment operator deleted to prevent copying
+    HashTable(const HashTable& other);
+    HashTable& operator=(const HashTable& other);
 
     //Insert
     void insertKey(const dataKey& key, const keyInfo& info);

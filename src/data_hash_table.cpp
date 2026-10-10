@@ -5,17 +5,20 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <stdexcept>
 
 
-HashTable::HashTable(size_t cap = 128) : capacity(cap), size(0) {
+HashTable::HashTable(size_t cap) : capacity(cap), size(0){
+    if(capacity == 0){
+        throw std::invalid_argument("HashTable capacity must be greater than zero");
+    }
     bucket = new Node*[capacity];
     for(size_t i = 0; i < capacity; ++i) {
         bucket[i] = nullptr;
     }
 }
 
-//Destructor to clean up the hash table
-
+//Destructor
 HashTable::~HashTable() {
     for(size_t i = 0; i < capacity; ++i) {
         Node* current = bucket[i];
@@ -27,6 +30,53 @@ HashTable::~HashTable() {
         }
     }
     delete[] bucket;
+}
+
+//Need to implement copy constructer and copy assignmet operator
+
+HashTable::HashTable(const HashTable& other){
+    //size_t capacity = new size_t(other.capacity;
+    this->capacity = other.capacity;
+    this->size = 0;
+    this->bucket = new Node*[other.capacity];
+    for(size_t i = 0; i < capacity; ++i) {
+        bucket[i] = nullptr;
+    }
+    for(size_t i = 0; i < other.capacity; ++i) {
+        Node* current = other.bucket[i];
+        while(current) {
+            insertKey(current->key, current->info);
+            current = current->next;
+        }
+    }
+}
+HashTable& HashTable::operator =(const HashTable& other){
+    if(this != &other) {
+        // Implementation for assignment operator
+        for(size_t i = 0; i < capacity; ++i) {
+            Node* current = bucket[i];
+            while(current) {
+                Node* toDelete = current;
+                current = current->next;
+                delete toDelete;
+            }
+        }
+        delete[] bucket; 
+        this->capacity = other.capacity;
+        this->size = 0;
+        this->bucket = new Node*[other.capacity];
+        for(size_t i = 0; i < capacity; ++i) {
+            bucket[i] = nullptr;
+        }
+        for(size_t i = 0; i < other.capacity; ++i) {
+            Node* current = other.bucket[i];
+            while(current) {
+                insertKey(current->key, current->info);
+                current = current->next;
+            }
+        }
+    }
+    return *this;
 }
 
 bool HashTable::keysEqual(const dataKey& a, const dataKey& b) const {
@@ -54,10 +104,7 @@ uint64_t HashTable::HashFunction(const dataKey& key) const {
         hash ^= (key.destPort >> (i * 8)) & 0xFF;
         hash *= 1099511628211ULL;
     }
-    for(int i=0; i<8; ++i) {
-        hash ^= (key.protocol >> (i * 8)) & 0xFF;
-        hash *= 1099511628211ULL;
-    }
+    //fixed one protocol
     for(int i=0; i<8; ++i) {
         hash ^= (key.protocol >> (i * 8)) & 0xFF;
         hash *= 1099511628211ULL;
@@ -68,7 +115,8 @@ uint64_t HashTable::HashFunction(const dataKey& key) const {
 }
 
 void HashTable::reSizeHash() {
-    if( (size/capacity) > LOAD_FACTOR) {
+    //Fixed load factor of 0.75, if the current size exceeds 75% of the capacity, we resize the hash table
+    if( (size/static_cast<double>(capacity)) > LOAD_FACTOR) {
         capacity *= 2;
         Node** newBucket = new Node*[capacity];
         for(size_t i = 0; i < capacity; ++i) {
@@ -145,3 +193,4 @@ keyInfo* HashTable::find(const dataKey& key) {
     }
     return nullptr;
 }
+

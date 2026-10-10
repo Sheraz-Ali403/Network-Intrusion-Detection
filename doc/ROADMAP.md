@@ -30,8 +30,8 @@ You can start Phase 1 immediately once the learning phase below is underway.
 **Goal:** Close the gap between Array/LinkedList/Stack/Queue/recursion and what the project actually needs. This phase runs in parallel with nothing else — it comes first, deliberately, because every later phase assumes this knowledge is solid.
 
 ### Week 1
-- [ ] Hashing & hash tables (collision resolution, load factor, resizing)
-- [ ] Amortized analysis (why resizing doesn't break the O(1) average claim)
+- [*] Hashing & hash tables (collision resolution, load factor, resizing)
+- [*] Amortized analysis (why resizing doesn't break the O(1) average claim)
 - [ ] Bit manipulation basics (binary/hex arithmetic, AND/OR/shift operations)
 
 ### Week 2
@@ -65,7 +65,7 @@ You can start Phase 1 immediately once the learning phase below is underway.
 - [ ] Write `DESIGN_SPEC.md` answering every item below, in writing
 
 ### Design-lock checklist
-- [ ] Hash table: separate chaining, FNV-1a hash function, 0.75 max load factor, 2× resize policy — built fully from scratch, no `std::unordered_map`
+- [*] Hash table: separate chaining, FNV-1a hash function, 0.75 max load factor, 2× resize policy — built fully from scratch, no `std::unordered_map`
 - [ ] **Connection key normalization:** canonical ordering rule so `A→B` and `B→A` packets hash to the same connection entry
 - [ ] Aho-Corasick: case-insensitive matching by default (attackers routinely evade case-sensitive matchers); payload treated as `(pointer, length)`, never null-terminated string, so embedded null bytes don't silently truncate scanning
 - [ ] Radix trie for CIDR matching: built from scratch, using bitmask-and-compare internally at each node — **not** a flat per-rule bitmask scan (that reintroduces O(R) rule scanning, which defeats the trie's purpose)
@@ -82,10 +82,10 @@ You can start Phase 1 immediately once the learning phase below is underway.
 
 **Goal:** Read a real `.pcap` file and print fully decoded packets. No detection logic yet.
 
-- [ ] `PCAPReader`: parse global header, iterate per-packet records (timestamp, captured length, original length, raw bytes)
+- [*] `PCAPReader`: parse global header, iterate per-packet records (timestamp, captured length, original length, raw bytes)
 - [ ] `EthernetParser`: src/dst MAC, EtherType
-- [ ] `IPv4Parser`: src/dst IP, protocol field, **handle variable-length IHL/options correctly**, TTL
-- [ ] `TCPParser` + `UDPParser`: ports, flags (SYN/ACK/FIN/RST), sequence numbers, payload offset/length
+- [*] `IPv4Parser`: src/dst IP, protocol field, **handle variable-length IHL/options correctly**, TTL
+- [*] `TCPParser` + `UDPParser`: ports, flags (SYN/ACK/FIN/RST), sequence numbers, payload offset/length
 - [ ] Unit tests against 3–4 known sample `.pcap` files (Wireshark's public sample captures)
 - [ ] **Validate output against Wireshark's decode of the same file**
 
