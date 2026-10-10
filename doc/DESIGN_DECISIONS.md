@@ -73,7 +73,7 @@ This document explains the six core design decisions behind our Network Intrusio
 ## Summary of Corrections Made
 
 | Section | Issue Found | Fix Applied |
-|---|---|---|
+|---      |--          -|          ---|
 | 1. Rule Storage | Used `std::unordered_map` (a forbidden built-in structure) | Replaced with the project's custom hash table |
 | 2. Payload Inspection | Presented plain Trie and Aho-Corasick as equal options, with a complexity claim only true for the second one | Clarified that failure links are required, not optional, for the single-pass claim to hold |
 | 3. Threading | Queue had no size limit or overflow rule | Added fixed capacity and a drop-oldest policy with a dropped-packet counter |

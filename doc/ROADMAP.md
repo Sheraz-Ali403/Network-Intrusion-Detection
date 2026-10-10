@@ -46,11 +46,11 @@ You can start Phase 1 immediately once the learning phase below is underway.
 
 ### Ongoing, parallel to all three weeks above
 - [ ] C++ pointers, stack vs. heap memory, dynamic allocation
-- [ ] Classes, constructors/destructors, RAII
+- [*] Classes, constructors/destructors, RAII
 - [ ] Smart pointers (`std::unique_ptr`) and move semantics
 
 ### Right before Phase 2 starts
-- [ ] Networking refresh: TCP three-way handshake and flags in detail, IPv4 header byte layout, PCAP file format spec — do this close to Phase 2, not weeks early, so it's fresh
+- [*] Networking refresh: TCP three-way handshake and flags in detail, IPv4 header byte layout, PCAP file format spec — do this close to Phase 2, not weeks early, so it's fresh
 
 **Exit criteria:** You can explain, without notes, what a load factor is and why resizing is still O(1) amortized; you can trace how a failure link redirects a mismatched trie walk; you understand why Dijkstra/heap "decrease-key" problems and connection-expiry "lazy invalidation" are the same underlying issue (this one will matter directly in Phase 6).
 
