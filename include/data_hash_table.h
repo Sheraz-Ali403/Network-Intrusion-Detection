@@ -15,13 +15,7 @@ KeysEqual - Done
 HashFunction - Done
 etc
 
-
-
-
-
-
 */
-
 
 //Data packet key
 struct dataKey {
@@ -31,7 +25,7 @@ struct dataKey {
     uint16_t srcPort;
     uint16_t destPort;
 
-    uint64_t protocol;
+    uint8_t protocol;
 };
 
 //If next same on the same IP and port, then increment the count and byte count
@@ -66,6 +60,8 @@ public:
     HashTable(size_t cap = 128);
     ~HashTable();
 
+    void clear();
+    
     //Copy constructor and assignment operator deleted to prevent copying
     HashTable(const HashTable& other);
     HashTable& operator=(const HashTable& other);

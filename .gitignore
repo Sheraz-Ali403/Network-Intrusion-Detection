@@ -1,7 +1,9 @@
 # Build output
 build/
+build-ucrt64
 out/
 bin/
+test/
 
 # Compiled files
 *.exe

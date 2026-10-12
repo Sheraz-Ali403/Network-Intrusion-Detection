@@ -19,22 +19,24 @@
 
 // Packets Info Storer
 struct PacketInfo {
-    std::string srcIP;
-    std::string dstIP;
-    std::string protocol;
+    uint32_t srcIP=0;
+    uint32_t dstIP=0;
+    uint8_t protocol=0;
 
     //0-65,535 port so 16 bits are enough
-    uint16_t srcPort;  
-    uint16_t dstPort;
+    uint16_t srcPort=0;  
+    uint16_t dstPort=0;
 
-    uint32_t packetSize;
-    std::string timestamp;
+    uint32_t packetSize=0;
+    //std::string timestamp;
 
     //if TCP, store the flags
     bool syn = false;
     bool ack = false;
     bool fin = false;
     bool rst = false;
+
+    bool valid = false; //if the packet is valid or not, if not valid then we can skip it
 
     /*Latter can be added
     timestamp already added
@@ -49,17 +51,22 @@ struct PacketInfo {
 
 class PcapHandler {
 private:
-    pcpp::PcapFileReaderDevice reader;
-    pcpp::RawPacket rawPacket;
-    PacketInfo info;
-public:
-    bool openPcapFile(const std::string& fileName);
+    pcpp::PcapFileReaderDevice* reader; 
+    std::string fileName;
+    //pcpp::RawPacket rawPacket;
+    //PacketInfo info;
+
     PacketInfo getPacketInfo(pcpp::RawPacket& rawPacket);
-    // bool readNextPacket();
+public:
+    PcapHandler();
+    ~PcapHandler();
+    //ban copying objects
+    PcapHandler(const PcapHandler&)=delete;
+    PcapHandler& operator=(const PcapHandler&)=delete;
+
+    bool openPcapFile(const std::string& fileName);
+
+
+    bool readNextPacket(PacketInfo& info);
 };
-
-
-
-
-
 
