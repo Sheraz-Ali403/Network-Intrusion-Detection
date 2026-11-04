@@ -30,7 +30,7 @@ struct CanonicalDirectionKey {
     Direction direction = Direction::A_to_B; 
 };
 
-//In TCP, both directions of the same 5-tuple are tracked as one flow.
+//In TCP two way convo of the same 5-tuple is one
 enum class TCPStates {
     NONE,
     SYN_SENT,

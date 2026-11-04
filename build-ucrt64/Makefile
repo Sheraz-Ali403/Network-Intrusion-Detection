@@ -64,6 +64,16 @@ CMAKE_BINARY_DIR = "E:\Projects\Intrustion Detection System\build-ucrt64"
 #=============================================================================
 # Targets provided globally by CMake.
 
+# Special rule for the target test
+test:
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Running tests..."
+	"C:\Program Files\CMake\bin\ctest.exe" $(ARGS)
+.PHONY : test
+
+# Special rule for the target test
+test/fast: test
+.PHONY : test/fast
+
 # Special rule for the target edit_cache
 edit_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Running CMake cache editor..."
@@ -128,12 +138,26 @@ Intrusion_Detection_System/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/build
 .PHONY : Intrusion_Detection_System/fast
 
+#=============================================================================
+# Target rules for targets named test_hash_table
+
+# Build rule for target.
+test_hash_table: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\Makefile2 test_hash_table
+.PHONY : test_hash_table
+
+# fast build rule for target.
+test_hash_table/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\test_hash_table.dir\build.make CMakeFiles/test_hash_table.dir/build
+.PHONY : test_hash_table/fast
+
 src/data_hash_table.obj: src/data_hash_table.cpp.obj
 .PHONY : src/data_hash_table.obj
 
 # target to build an object file
 src/data_hash_table.cpp.obj:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/data_hash_table.cpp.obj
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\test_hash_table.dir\build.make CMakeFiles/test_hash_table.dir/src/data_hash_table.cpp.obj
 .PHONY : src/data_hash_table.cpp.obj
 
 src/data_hash_table.i: src/data_hash_table.cpp.i
@@ -142,6 +166,7 @@ src/data_hash_table.i: src/data_hash_table.cpp.i
 # target to preprocess a source file
 src/data_hash_table.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/data_hash_table.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\test_hash_table.dir\build.make CMakeFiles/test_hash_table.dir/src/data_hash_table.cpp.i
 .PHONY : src/data_hash_table.cpp.i
 
 src/data_hash_table.s: src/data_hash_table.cpp.s
@@ -150,6 +175,7 @@ src/data_hash_table.s: src/data_hash_table.cpp.s
 # target to generate assembly for a file
 src/data_hash_table.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/data_hash_table.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\test_hash_table.dir\build.make CMakeFiles/test_hash_table.dir/src/data_hash_table.cpp.s
 .PHONY : src/data_hash_table.cpp.s
 
 src/main.obj: src/main.cpp.obj
@@ -200,6 +226,30 @@ src/pcapHandler.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/pcapHandler.cpp.s
 .PHONY : src/pcapHandler.cpp.s
 
+tests/test_hash_table.obj: tests/test_hash_table.cpp.obj
+.PHONY : tests/test_hash_table.obj
+
+# target to build an object file
+tests/test_hash_table.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\test_hash_table.dir\build.make CMakeFiles/test_hash_table.dir/tests/test_hash_table.cpp.obj
+.PHONY : tests/test_hash_table.cpp.obj
+
+tests/test_hash_table.i: tests/test_hash_table.cpp.i
+.PHONY : tests/test_hash_table.i
+
+# target to preprocess a source file
+tests/test_hash_table.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\test_hash_table.dir\build.make CMakeFiles/test_hash_table.dir/tests/test_hash_table.cpp.i
+.PHONY : tests/test_hash_table.cpp.i
+
+tests/test_hash_table.s: tests/test_hash_table.cpp.s
+.PHONY : tests/test_hash_table.s
+
+# target to generate assembly for a file
+tests/test_hash_table.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\test_hash_table.dir\build.make CMakeFiles/test_hash_table.dir/tests/test_hash_table.cpp.s
+.PHONY : tests/test_hash_table.cpp.s
+
 # Help Target
 help:
 	@echo The following are some of the valid targets for this Makefile:
@@ -208,7 +258,9 @@ help:
 	@echo ... depend
 	@echo ... edit_cache
 	@echo ... rebuild_cache
+	@echo ... test
 	@echo ... Intrusion_Detection_System
+	@echo ... test_hash_table
 	@echo ... src/data_hash_table.obj
 	@echo ... src/data_hash_table.i
 	@echo ... src/data_hash_table.s
@@ -218,6 +270,9 @@ help:
 	@echo ... src/pcapHandler.obj
 	@echo ... src/pcapHandler.i
 	@echo ... src/pcapHandler.s
+	@echo ... tests/test_hash_table.obj
+	@echo ... tests/test_hash_table.i
+	@echo ... tests/test_hash_table.s
 .PHONY : help
 
 

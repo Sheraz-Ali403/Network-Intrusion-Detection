@@ -390,22 +390,22 @@ bool HashTable::processPacket(const PacketInfo& packet, uint64_t timestampUs) {
         ++info->packetAtoB;
         info->byteAtoB += packet.packetSize;
 
-        if (packet.protocol == TCP_PROTOCOL) {
-            if (packet.syn) ++info->synAtoB;
-            if (packet.ack) ++info->ackAtoB;
-            if (packet.fin) ++info->finAtoB;
-            if (packet.rst) ++info->rstAtoB;
+        if(packet.protocol == TCP_PROTOCOL){
+            if(packet.syn) ++info->synAtoB;
+            if(packet.ack) ++info->ackAtoB;
+            if(packet.fin) ++info->finAtoB;
+            if(packet.rst) ++info->rstAtoB;
         }
     }
-    else {
+    else{
         ++info->packetBtoA;
         info->byteBtoA += packet.packetSize;
 
-        if (packet.protocol == TCP_PROTOCOL) {
-            if (packet.syn) ++info->synBtoA;
-            if (packet.ack) ++info->ackBtoA;
-            if (packet.fin) ++info->finBtoA;
-            if (packet.rst) ++info->rstBtoA;
+        if(packet.protocol == TCP_PROTOCOL) {
+            if(packet.syn) ++info->synBtoA;
+            if(packet.ack) ++info->ackBtoA;
+            if(packet.fin) ++info->finBtoA;
+            if(packet.rst) ++info->rstBtoA;
         }
     }
 
