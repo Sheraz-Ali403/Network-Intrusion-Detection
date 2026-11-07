@@ -297,7 +297,7 @@ void HashTable::updateTCPState(ConnectionInfo& info, const PacketInfo& packet, D
 {
     //RST terminates the tracked TCP conversation immediately.
     if (packet.rst) {
-        if (info.state != TCPStates::CLOSED) {
+        if(info.state != TCPStates::CLOSED) {
             info.state = TCPStates::CLOSED;
             ++info.totalFinishedConversations;
         }
@@ -306,8 +306,8 @@ void HashTable::updateTCPState(ConnectionInfo& info, const PacketInfo& packet, D
     }
 
     //First SYN (without ACK) identifies the initiator.
-    if (packet.syn && !packet.ack) {
-        if (info.state == TCPStates::NONE) {
+    if(packet.syn && !packet.ack) {
+        if(info.state == TCPStates::NONE) {
             info.initiatorDirection = direction;
             info.initiatorKnown = true;
             info.state = TCPStates::SYN_SENT;
