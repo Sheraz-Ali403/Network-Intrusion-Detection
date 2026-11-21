@@ -1,11 +1,17 @@
 #include "aho_corasick.h"
 #include <queue> //for BFS
+#include <fstream> //for file opening
+#include <sstream> //for string parsing
 
 using std::string;
 using std::vector;
 using std::queue;
+using std::ifstream;
+using std::ofstream;
+using std::stringstream;
+using std::getline;
 
-node::node(char input) : letter(input), patternID(-1)
+node::node(char input) : letter(input), info(NULL)
 {
     failureLink = nullptr;
     outputLink = nullptr;
@@ -32,11 +38,11 @@ uint8_t AhoCorasick::lower(char c) //turn all letters to lower
     return c;
 }
 
-void AhoCorasick::insertUtil(node* cur, const string& word, size_t index, int id)
+void AhoCorasick::insertUtil(node* cur, const string& word, size_t index, patternInfo& pInfo)
 {
-    if (word.length() == index) //base case
+    if (word.length() == index) // base case
     {
-        cur->patternID = id;
+        cur->info = &pInfo; // Assign address directly
         return;
     }
 
@@ -54,7 +60,7 @@ void AhoCorasick::insertUtil(node* cur, const string& word, size_t index, int id
         cur->children[i] = child;
     }
 
-    insertUtil(child, word, index + 1, id); //using recursion for insertion
+    insertUtil(child, word, index + 1, pInfo); //using recursion for insertion
 }
 
 void AhoCorasick::buildFailAndOutputLinkUtil()
@@ -92,7 +98,7 @@ void AhoCorasick::buildFailAndOutputLinkUtil()
             if (failTravel == root && !root->children[i]) child->failureLink = root; //if we reach depth-0 and it doesn't have proper child
             else child->failureLink = failTravel->children[i];
 
-            if (child->failureLink->patternID > -1)
+            if (child->failureLink->info!=nullptr)
             {
                 //if failurelink also ends a pattern, we put it as output link too
                 child->outputLink = child->failureLink;
@@ -127,9 +133,9 @@ vector<match> AhoCorasick::scanPatternUtil(const uint8_t* data, size_t len)
 
             state = state->children[cha];
 
-            if (state->patternID > -1) //check if we find a pattern;
+            if (state->info!=nullptr) //check if we find a pattern;
             {
-                positions.push_back({i, state->patternID});
+                positions.push_back({i, state->info});
             }
 
             //check if theres any output link to other patterns
@@ -137,7 +143,10 @@ vector<match> AhoCorasick::scanPatternUtil(const uint8_t* data, size_t len)
 
             while (finds->outputLink != nullptr) //for multiple implicit patterns
             {
-                positions.push_back({i, finds->outputLink->patternID});
+                if(finds->outputLink->info!=nullptr)
+                {
+                    positions.push_back({i, finds->outputLink->info});
+                }
                 finds = finds->outputLink;
             }
         }
@@ -165,14 +174,14 @@ void AhoCorasick::destroy(node* cur) //for destructor
     }
 
     delete cur;
-}
+};
 
-void AhoCorasick::buildTrie(const vector<string>& pattern)
+void AhoCorasick::buildTrie(vector<patternInfo>& patterns)
 {
-    for (size_t i = 0; i < pattern.size(); i++)
+    for (size_t i = 0; i < patterns.size(); i++)
     {
-        if (pattern[i].empty()) continue; // guard clause for empty string
-        insertUtil(root, pattern[i], 0, static_cast<int>(i));
+        if (patterns[i].pattern.empty()) continue; // guard clause for empty string
+        insertUtil(root, patterns[i].pattern,0, patterns[i]);
     }
 }
 
@@ -184,4 +193,53 @@ void AhoCorasick::buildFailAndOutputLink()
 vector<match> AhoCorasick::scanPattern(const uint8_t* data, size_t len)
 {
     return scanPatternUtil(data, len);
+}
+
+void AhoCorasick::openRules(vector<patternInfo>& patterns, const string& path)
+{
+    ifstream file(path);
+
+    if(!file.is_open()) return;//file not open
+
+    string line;
+    while(getline(file,line))
+    {
+        if (!line.empty() && line.back() == '\r') line.pop_back(); //windows put \r at the end of text so to remove that
+        if(line.empty()) continue; //if empty
+
+        string name, pattern, severity;
+        string id;
+
+        stringstream ss(line);
+
+        if (getline(ss, id, '|') && getline(ss, severity, '|') &&getline(ss, name, '|') &&getline(ss, pattern)) 
+        {
+            patternInfo p(name,stoi(id),severity,pattern);
+            patterns.push_back(p);
+        }
+    }
+
+    buildTrie(patterns);
+    buildFailAndOutputLink();
+
+}
+
+void AhoCorasick::writeAlerts(const string& path, vector<match> alerts, const string& flow)
+{
+    ofstream file(path, std::ios::app);
+
+    if(!file.is_open()) return;
+
+    for(size_t i=0; i< alerts.size();i++)
+    {
+        if (alerts[i].info != nullptr)
+        {
+            file << "[ALERT] ID: " << alerts[i].info->id
+                 << " | Name: " << alerts[i].info->name
+                 << " | Severity: " << alerts[i].info->severity
+                 << " | Pattern: " << alerts[i].info->pattern
+                 << " | Offset: " << alerts[i].endOffset
+                 << " | Flow: " << flow << "\n";
+        }
+    }
 }
