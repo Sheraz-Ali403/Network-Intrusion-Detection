@@ -11,13 +11,10 @@ namespace {
     constexpr uint8_t UDP_PROTOCOL = 17;
 
     //Compare endpoints consistently: first IP, then port.
-    bool endpointIsBefore(uint32_t firstIP, uint16_t firstPort,
-                          uint32_t secondIP, uint16_t secondPort)
-    {
-        if (firstIP != secondIP) {
+    bool endpointIsBefore(uint32_t firstIP, uint16_t firstPort, uint32_t secondIP, uint16_t secondPort){
+        if(firstIP != secondIP) {
             return firstIP < secondIP;
         }
-
         return firstPort <= secondPort;
     }
 }
@@ -39,19 +36,17 @@ HashTable::~HashTable(){
 
 //Delete all nodes but keep the current bucket array and capacity.
 void HashTable::clear() {
-    for (size_t i = 0; i < capacity; ++i) {
+    for(size_t i = 0; i < capacity; ++i){
         Node* current = bucket[i];
 
         //for cleaning up the list in each bucket in separate chaining
-        while (current) {
+        while(current){
             Node* toDelete = current;
             current = current->next;
             delete toDelete;
         }
-
         bucket[i] = nullptr;
     }
-
     size = 0;
 }
 
@@ -61,10 +56,10 @@ HashTable::HashTable(const HashTable& other): capacity(other.capacity), size(0){
 
     try {
         //Copy every node, including all nodes in collision chains.
-        for (size_t i = 0; i < other.capacity; ++i) {
+        for(size_t i = 0; i < other.capacity; ++i){
             Node* current = other.bucket[i];
 
-            while (current) {
+            while(current){
                 uint64_t index = HashValue(current->key) % capacity;
 
                 Node* newNode = new Node(current->key, current->info);
@@ -113,7 +108,6 @@ uint64_t HashTable::HashValue(const dataKey& key) const {
     constexpr uint64_t FNV_PRIME = 1099511628211ULL;
 
     uint64_t hash = FNV_OFFSET_BASIS;
-
     auto processByte = [&hash](uint8_t byte) {
         hash ^= byte;
         hash *= FNV_PRIME;
@@ -147,11 +141,11 @@ uint64_t HashTable::HashFunction(const dataKey& key) const {
 
 void HashTable::reSizeHash() {
     //Resize before inserting the next node if it would exceed the load factor.
-    if (static_cast<double>(size + 1) / static_cast<double>(capacity) <= LOAD_FACTOR) {
+    if(static_cast<double>(size + 1) / static_cast<double>(capacity) <= LOAD_FACTOR) {
         return;
     }
 
-    if (capacity > std::numeric_limits<size_t>::max() / 2) {
+    if(capacity > std::numeric_limits<size_t>::max() / 2) {
         throw std::length_error("HashTable capacity cannot be doubled");
     }
     //std::numeric_limits<size_t>::max() checks for overflow when doubling the capacity. If the current capacity is greater than half of the maximum value for size_t, doubling it would exceed the maximum representable value, leading to undefined behavior or wraparound. Therefore, we throw a length_error exception to prevent this situation.
@@ -185,7 +179,7 @@ CanonicalDirectionKey HashTable::makeCanonicalKey(const PacketInfo& packet) cons
 
     bool sourceIsA = endpointIsBefore(packet.srcIP, packet.srcPort, packet.dstIP, packet.dstPort);
 
-    if (sourceIsA) {
+    if(sourceIsA) {
         result.key.sideA_IP = packet.srcIP;
         result.key.sideB_IP = packet.dstIP;
 
@@ -215,8 +209,8 @@ ConnectionInfo* HashTable::insertKey(const dataKey& key, const ConnectionInfo& i
     uint64_t index = HashFunction(key);
     Node* current = bucket[index];
 
-    while (current) {
-        if (keysEqual(current->key, key)) {
+    while(current) {
+        if(keysEqual(current->key, key)) {
             return &current->info;
         }
 
@@ -243,15 +237,14 @@ void HashTable::remove(const dataKey& key) {
     Node* current = bucket[index];
     Node* prev = nullptr;
 
-    while (current) {
-        if (keysEqual(current->key, key)) {
-            if (prev) {
+    while(current) {
+        if(keysEqual(current->key, key)) {
+            if(prev) {
                 prev->next = current->next;
             }
-            else {
+            else{
                 bucket[index] = current->next;
             }
-
             delete current;
             --size;
             return;
@@ -267,14 +260,12 @@ ConnectionInfo* HashTable::find(const dataKey& key) {
     uint64_t index = HashFunction(key);
     Node* current = bucket[index];
 
-    while (current) {
-        if (keysEqual(current->key, key)) {
+    while(current) {
+        if(keysEqual(current->key, key)) {
             return &current->info;
         }
-
         current = current->next;
     }
-
     return nullptr;
 }
 
@@ -282,26 +273,22 @@ const ConnectionInfo* HashTable::find(const dataKey& key) const {
     uint64_t index = HashFunction(key);
     Node* current = bucket[index];
 
-    while (current) {
-        if (keysEqual(current->key, key)) {
+    while(current) {
+        if(keysEqual(current->key, key)) {
             return &current->info;
         }
-
         current = current->next;
     }
-
     return nullptr;
 }
 
-void HashTable::updateTCPState(ConnectionInfo& info, const PacketInfo& packet, Direction direction)
-{
+void HashTable::updateTCPState(ConnectionInfo& info, const PacketInfo& packet, Direction direction){
     //RST terminates the tracked TCP conversation immediately.
-    if (packet.rst) {
+    if(packet.rst) {
         if(info.state != TCPStates::CLOSED) {
             info.state = TCPStates::CLOSED;
             ++info.totalFinishedConversations;
         }
-
         return;
     }
 
