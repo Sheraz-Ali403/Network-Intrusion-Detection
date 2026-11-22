@@ -1,0 +1,10 @@
+1001|HIGH|SQL injection (union select)|union select
+1002|HIGH|SQL injection (tautology)|or 1=1
+1003|MEDIUM|Path traversal (passwd)|/etc/passwd
+1004|MEDIUM|Path traversal (dot-dot)|../../
+1005|HIGH|XSS script tag|<script>
+1006|CRITICAL|Shell command injection|/bin/sh
+1007|LOW|Scanner user-agent (sqlmap)|sqlmap
+1008|LOW|Scanner user-agent (nikto)|nikto
+1009|MEDIUM|Directory listing probe|/admin
+1010|CRITICAL|Shell upload (cmd param)|cmd.exe

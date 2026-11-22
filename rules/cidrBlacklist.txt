@@ -1,0 +1,29 @@
+# blacklist.txt
+# one rule per line; '#' starts a comment
+
+# --- documentation ranges (RFC 5737), reserved for examples ---
+192.0.2.0/24        # TEST-NET-1
+198.51.100.0/24     # TEST-NET-2
+203.0.113.0/24      # TEST-NET-3
+
+# --- private ranges ---
+10.0.0.0/8          # big range
+172.16.0.0/12
+192.168.0.0/16
+
+# --- nested rules (tests longest-prefix match) ---
+10.1.0.0/16         # inside the 10.0.0.0/8 above
+10.1.2.0/24         # inside the /16
+10.1.2.3            # single host (/32), the most specific
+
+# --- single hosts ---
+8.8.8.8             # bare IP, same as /32
+1.2.3.4/32          # explicit /32
+
+# --- messy input the parser should handle ---
+   100.64.0.0/10    # leading spaces and tabs are trimmed
+
+# --- invalid lines (silently skipped) ---
+300.1.1.1/24
+10.0.0.0/33
+hello

@@ -1,0 +1,16 @@
+cmake -G "MinGW Makefiles" -S . -B build -DPcapPlusPlus_ROOT="C:\dev\PcapPlusPlus-install" -DPCAP_ROOT="C:\dev\npcap-sdk-1.16" -DPacket_ROOT="C:\dev\npcap-sdk-1.16"   
+-> Only once or changes the file Path
+
+
+cmake --build build  -> Normal build for normal compilation
+
+.\build\IDS.exe  -> Run the execuatable
+
+.\build-ucrt64\Intrusion_Detection_System.exe "captures\01_normal_traffic.pcap" "rules\ahoRules.txt" "rules\cidrBlacklist.txt"
+
+.\build-ucrt64\Intrusion_Detection_System.exe "captures\02_flow_alert_scenarios.pcap" "rules\ahoRules.txt" "rules\cidrBlacklist.txt"
+.\build-ucrt64\Intrusion_Detection_System.exe "captures\03_aho_signatures.pcap" "rules\ahoRules.txt" "rules\cidrBlacklist.txt"
+.\build-ucrt64\Intrusion_Detection_System.exe "captures\04_cidr_blacklist.pcap" "rules\ahoRules.txt" "rules\cidrBlacklist.txt"
+.\build-ucrt64\Intrusion_Detection_System.exe "captures\05_rate_detection.pcap" "rules\ahoRules.txt" "rules\cidrBlacklist.txt"  
+.\build-ucrt64\Intrusion_Detection_System.exe "captures\06_expiration_gaps.pcap" "rules\ahoRules.txt" "rules\cidrBlacklist.txt"
+.\build-ucrt64\Intrusion_Detection_System.exe "captures\07_mixed_pipeline.pcap" "rules\ahoRules.txt" "rules\cidrBlacklist.txt"
