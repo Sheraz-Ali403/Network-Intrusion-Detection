@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <cstdint>  //unit16_t, uint32_t
 #include <string>
+#include <vector>
 
 #include "PcapLiveDeviceList.h" //For live capture for v2
 
@@ -28,6 +29,7 @@ struct PacketInfo {
     uint16_t dstPort=0;
 
     uint32_t packetSize=0;
+    uint64_t timestampUs = 0; // capture timestamp in microseconds
     //std::string timestamp;
 
     //if TCP, store the flags
@@ -35,8 +37,12 @@ struct PacketInfo {
     bool ack = false;
     bool fin = false;
     bool rst = false;
+    uint32_t sequenceNumber = 0;
+    uint32_t acknowledgmentNumber = 0;
 
     bool valid = false; //if the packet is valid or not, if not valid then we can skip it
+
+    std::vector<uint8_t> payload;   // copy of the data inside the packet byte by byte
 
     /*Latter can be added
     timestamp already added

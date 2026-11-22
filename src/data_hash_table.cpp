@@ -60,7 +60,7 @@ HashTable::HashTable(const HashTable& other)
       dataTransferSequence(other.dataTransferSequence),
       tcpStateSequence(other.tcpStateSequence),
       resetSequence(other.resetSequence),
-      longConnectionSequence(other.longConnectionSequence)
+      longConnectionSequence(other.longConnectionSequence), flowTimeouts(other.flowTimeouts) 
 {
     bucket = new Node*[capacity]{};
 
@@ -106,6 +106,7 @@ HashTable& HashTable::operator=(const HashTable& other) {
         std::swap(tcpStateSequence, temp.tcpStateSequence);
         std::swap(resetSequence, temp.resetSequence);
         std::swap(longConnectionSequence, temp.longConnectionSequence);
+        std::swap(flowTimeouts, temp.flowTimeouts);
     }
 
     return *this;
@@ -272,6 +273,93 @@ void HashTable::remove(const dataKey& key) {
     }
 }
 
+// Deleting expired or old convo in hastable
+size_t HashTable::expireFlows(uint64_t currentTimeUs) {
+
+    size_t expiredCount = 0;
+
+    // Visit every bucket in the hash table.
+    for (size_t i = 0; i < capacity; ++i) {
+
+        Node** currentLink = &bucket[i];
+
+        while (*currentLink != nullptr) {
+
+            Node* current = *currentLink;
+            const ConnectionInfo& info = current->info;
+
+            // Without a valid timestamp, we cannot calculate idle time.
+            if (info.lastSeen == 0 || currentTimeUs < info.lastSeen) {
+                currentLink = &current->next;
+                continue;
+            }
+
+            uint64_t timeoutUs = 0;
+
+            // Select the timeout according to the protocol and TCP state.
+            if (current->key.protocol == TCP_PROTOCOL) {
+
+                switch (info.state) {
+
+                    case TCPStates::ESTABLISHED:
+                        timeoutUs = flowTimeouts.tcpEstablishedUs;
+                        break;
+
+                    case TCPStates::SYN_SENT:
+                        timeoutUs = flowTimeouts.tcpSynSentUs;
+                        break;
+
+                    case TCPStates::FIN_WAIT:
+                        timeoutUs = flowTimeouts.tcpFinWaitUs;
+                        break;
+
+                    case TCPStates::CLOSED:
+                        timeoutUs = flowTimeouts.tcpClosedUs;
+                        break;
+
+                    case TCPStates::NONE:
+                    default:
+                        timeoutUs = flowTimeouts.tcpOtherUs;
+                        break;
+                }
+            }
+            else if (current->key.protocol == UDP_PROTOCOL) {
+                timeoutUs = flowTimeouts.udpIdleUs;
+            }
+            else {
+                // Unknown protocols are not managed by this expiration policy.
+                currentLink = &current->next;
+                continue;
+            }
+
+            // A timeout of zero disables expiration for that category.
+            if (timeoutUs == 0) {
+                currentLink = &current->next;
+                continue;
+            }
+
+            const uint64_t idleTimeUs = currentTimeUs - info.lastSeen;
+
+            if (idleTimeUs >= timeoutUs) {
+
+                // Unlink the node from the collision chain.
+                *currentLink = current->next;
+
+                delete current;
+
+                --size;
+                ++expiredCount;
+            }
+            else {
+                // Keep this node and move to the next link.
+                currentLink = &current->next;
+            }
+        }
+    }
+
+    return expiredCount;
+}
+
 //Find
 ConnectionInfo* HashTable::find(const dataKey& key) {
     uint64_t index = HashFunction(key);
@@ -302,6 +390,7 @@ const ConnectionInfo* HashTable::find(const dataKey& key) const {
 void HashTable::updateTCPState(ConnectionInfo& info, const PacketInfo& packet, Direction direction){
     //RST terminates the tracked TCP conversation immediately.
     if(packet.rst) {
+        info.closeReason = CloseReason::RST;
         if(info.state != TCPStates::CLOSED) {
             info.state = TCPStates::CLOSED;
             ++info.totalFinishedConversations;
@@ -341,23 +430,47 @@ void HashTable::updateTCPState(ConnectionInfo& info, const PacketInfo& packet, D
         info.state = TCPStates::ESTABLISHED;
     }
 
-    //This is a simplified close model. It marks CLOSED after both sides send FIN.
+    //Serial ordering is valid for distances below half the 32-bit sequence space.
+    auto acknowledges = [](uint32_t ack, uint32_t end) {
+        return static_cast<uint32_t>(ack - end) < 0x80000000U;
+    };
+
+    //ACK is processed before this packet's own FIN, including FIN+ACK packets.
+    if (info.state == TCPStates::FIN_WAIT && packet.ack) {
+        if (direction == Direction::A_to_B && info.finBtoASeen &&
+            acknowledges(packet.acknowledgmentNumber, info.finBtoAEndSequence)) {
+            info.finBtoAAcknowledged = true;
+        }
+        if (direction == Direction::B_to_A && info.finAtoBSeen &&
+            acknowledges(packet.acknowledgmentNumber, info.finAtoBEndSequence)) {
+            info.finAtoBAcknowledged = true;
+        }
+    }
+
+    //Keep the first FIN boundary; retransmissions must not reset progress.
     if (packet.fin &&
         (info.state == TCPStates::ESTABLISHED || info.state == TCPStates::FIN_WAIT)) {
 
-        if (direction == Direction::A_to_B) {
+        if (direction == Direction::A_to_B && !info.finAtoBSeen) {
             info.finAtoBSeen = true;
+            info.finAtoBEndSequence = packet.sequenceNumber
+                + static_cast<uint32_t>(packet.payload.size()) + 1U;
         }
-        else {
+        else if (direction == Direction::B_to_A && !info.finBtoASeen) {
             info.finBtoASeen = true;
+            info.finBtoAEndSequence = packet.sequenceNumber
+                + static_cast<uint32_t>(packet.payload.size()) + 1U;
         }
 
         info.state = TCPStates::FIN_WAIT;
 
-        if (info.finAtoBSeen && info.finBtoASeen) {
-            info.state = TCPStates::CLOSED;
-            ++info.totalFinishedConversations;
-        }
+    }
+    if (info.state == TCPStates::FIN_WAIT &&
+        info.finAtoBSeen && info.finBtoASeen &&
+        info.finAtoBAcknowledged && info.finBtoAAcknowledged) {
+        info.state = TCPStates::CLOSED;
+        info.closeReason = CloseReason::FIN;
+        ++info.totalFinishedConversations;
     }
 }
 //Alert methods
@@ -587,6 +700,15 @@ void HashTable::setAlertThresholds(const HashTableAlertThresholds& limits) {
 }
 
 //Alert Finished
+
+
+void HashTable::setFlowTimeouts(const HashTableFlowTimeouts& timeouts) {
+    flowTimeouts = timeouts;
+}
+
+const HashTableFlowTimeouts& HashTable::getFlowTimeouts() const {
+    return flowTimeouts;
+}
 
 size_t HashTable::getSize() const {
     return size;

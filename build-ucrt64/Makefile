@@ -164,6 +164,54 @@ rate_table_table/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\rate_table_table.dir\build.make CMakeFiles/rate_table_table.dir/build
 .PHONY : rate_table_table/fast
 
+src/aho_corasick.obj: src/aho_corasick.cpp.obj
+.PHONY : src/aho_corasick.obj
+
+# target to build an object file
+src/aho_corasick.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/aho_corasick.cpp.obj
+.PHONY : src/aho_corasick.cpp.obj
+
+src/aho_corasick.i: src/aho_corasick.cpp.i
+.PHONY : src/aho_corasick.i
+
+# target to preprocess a source file
+src/aho_corasick.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/aho_corasick.cpp.i
+.PHONY : src/aho_corasick.cpp.i
+
+src/aho_corasick.s: src/aho_corasick.cpp.s
+.PHONY : src/aho_corasick.s
+
+# target to generate assembly for a file
+src/aho_corasick.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/aho_corasick.cpp.s
+.PHONY : src/aho_corasick.cpp.s
+
+src/cidr_blacklist.obj: src/cidr_blacklist.cpp.obj
+.PHONY : src/cidr_blacklist.obj
+
+# target to build an object file
+src/cidr_blacklist.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/cidr_blacklist.cpp.obj
+.PHONY : src/cidr_blacklist.cpp.obj
+
+src/cidr_blacklist.i: src/cidr_blacklist.cpp.i
+.PHONY : src/cidr_blacklist.i
+
+# target to preprocess a source file
+src/cidr_blacklist.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/cidr_blacklist.cpp.i
+.PHONY : src/cidr_blacklist.cpp.i
+
+src/cidr_blacklist.s: src/cidr_blacklist.cpp.s
+.PHONY : src/cidr_blacklist.s
+
+# target to generate assembly for a file
+src/cidr_blacklist.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/cidr_blacklist.cpp.s
+.PHONY : src/cidr_blacklist.cpp.s
+
 src/data_hash_table.obj: src/data_hash_table.cpp.obj
 .PHONY : src/data_hash_table.obj
 
@@ -244,6 +292,7 @@ src/rate_table.obj: src/rate_table.cpp.obj
 
 # target to build an object file
 src/rate_table.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/rate_table.cpp.obj
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\rate_table_table.dir\build.make CMakeFiles/rate_table_table.dir/src/rate_table.cpp.obj
 .PHONY : src/rate_table.cpp.obj
 
@@ -252,6 +301,7 @@ src/rate_table.i: src/rate_table.cpp.i
 
 # target to preprocess a source file
 src/rate_table.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/rate_table.cpp.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\rate_table_table.dir\build.make CMakeFiles/rate_table_table.dir/src/rate_table.cpp.i
 .PHONY : src/rate_table.cpp.i
 
@@ -260,6 +310,7 @@ src/rate_table.s: src/rate_table.cpp.s
 
 # target to generate assembly for a file
 src/rate_table.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\Intrusion_Detection_System.dir\build.make CMakeFiles/Intrusion_Detection_System.dir/src/rate_table.cpp.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\rate_table_table.dir\build.make CMakeFiles/rate_table_table.dir/src/rate_table.cpp.s
 .PHONY : src/rate_table.cpp.s
 
@@ -323,6 +374,12 @@ help:
 	@echo ... Intrusion_Detection_System
 	@echo ... rate_table_table
 	@echo ... test_hash_table
+	@echo ... src/aho_corasick.obj
+	@echo ... src/aho_corasick.i
+	@echo ... src/aho_corasick.s
+	@echo ... src/cidr_blacklist.obj
+	@echo ... src/cidr_blacklist.i
+	@echo ... src/cidr_blacklist.s
 	@echo ... src/data_hash_table.obj
 	@echo ... src/data_hash_table.i
 	@echo ... src/data_hash_table.s

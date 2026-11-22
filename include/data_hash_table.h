@@ -42,6 +42,8 @@ enum class TCPStates {
     CLOSED
 };
 
+enum class CloseReason { NONE, FIN, RST };
+
 struct ConnectionInfo {
     //Total traffic in this flow
     uint64_t packetCount = 0;
@@ -84,6 +86,11 @@ struct ConnectionInfo {
     //Used by the simplified TCP close-state logic.
     bool finAtoBSeen = false;
     bool finBtoASeen = false;
+    bool finAtoBAcknowledged = false;
+    bool finBtoAAcknowledged = false;
+    uint32_t finAtoBEndSequence = 0;
+    uint32_t finBtoAEndSequence = 0;
+    CloseReason closeReason = CloseReason::NONE;
 
     // Per-conversation alert suppression. These reset when a TCP 5-tuple
     // starts a fresh conversation; global alert sequences do not reset.
@@ -122,6 +129,17 @@ struct HashTableAlert {
     uint64_t threshold = 0;
 };
 
+//For expired convo clearing Table
+struct HashTableFlowTimeouts {
+    // All values are in microseconds.
+    uint64_t tcpEstablishedUs = 300ULL * 1000000ULL; // 5 minutes
+    uint64_t tcpSynSentUs     = 60ULL * 1000000ULL;  // 1 minute
+    uint64_t tcpFinWaitUs     = 30ULL * 1000000ULL;  // 30 seconds
+    uint64_t tcpClosedUs      = 10ULL * 1000000ULL;  // 10 seconds
+    uint64_t tcpOtherUs       = 300ULL * 1000000ULL; // 5 minutes
+    uint64_t udpIdleUs        = 60ULL * 1000000ULL;  // 1 minute
+};
+
 struct Node {
     dataKey key;
     ConnectionInfo info;
@@ -136,6 +154,8 @@ class HashTable {
     size_t capacity = 0; //total capacity of hash table
     size_t size = 0;     //current number of stored flows
     static constexpr double LOAD_FACTOR = 0.75; // Max load factor for resizing
+
+    HashTableFlowTimeouts flowTimeouts{};
 
     //Alertss
     HashTableAlertThresholds alertThresholds{};
@@ -202,6 +222,10 @@ public:
     const std::vector<HashTableAlert>& getAlerts() const;
     const HashTableAlertThresholds& getAlertThresholds() const;
     void setAlertThresholds(const HashTableAlertThresholds& limits);
+
+    size_t expireFlows(uint64_t currentTimeUs);
+    void setFlowTimeouts(const HashTableFlowTimeouts& timeouts);
+    const HashTableFlowTimeouts& getFlowTimeouts() const;
 
     size_t getSize() const;
     size_t getCapacity() const;

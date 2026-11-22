@@ -1,3 +1,8 @@
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <arpa/inet.h>
+#endif
 #include <iostream>
 #include <stdio.h>
 #include <cstdint>  //unit16_t, uint32_t
@@ -72,6 +77,14 @@ PacketInfo PcapHandler::getPacketInfo(pcpp::RawPacket& rawPacket) {
                 info.ack = tcpLayer->getTcpHeader()->ackFlag;
                 info.fin = tcpLayer->getTcpHeader()->finFlag;
                 info.rst = tcpLayer->getTcpHeader()->rstFlag;
+                info.sequenceNumber = ntohl(tcpLayer->getTcpHeader()->sequenceNumber);
+                info.acknowledgmentNumber = ntohl(tcpLayer->getTcpHeader()->ackNumber);
+
+                const uint8_t* payload = tcpLayer->getLayerPayload();
+                const size_t payloadSize = tcpLayer->getLayerPayloadSize();
+                if (payload != nullptr && payloadSize > 0) {
+                    info.payload.assign(payload, payload + payloadSize);
+                }
 
                 info.valid = true;
             }
@@ -83,6 +96,12 @@ PacketInfo PcapHandler::getPacketInfo(pcpp::RawPacket& rawPacket) {
             if (udpLayer != nullptr) {
                 info.srcPort = udpLayer->getSrcPort();
                 info.dstPort = udpLayer->getDstPort();
+
+                const uint8_t* payload = udpLayer->getLayerPayload();
+                const size_t payloadSize = udpLayer->getLayerPayloadSize();
+                if (payload != nullptr && payloadSize > 0) {
+                    info.payload.assign(payload, payload + payloadSize);
+                }
 
                 info.valid = true;
             }
@@ -96,7 +115,9 @@ PacketInfo PcapHandler::getPacketInfo(pcpp::RawPacket& rawPacket) {
     }
 
     info.packetSize = rawPacket.getRawDataLen();
-    // Timestamp handling can be added here
+    const timespec timestamp = rawPacket.getPacketTimeStamp();
+    info.timestampUs = static_cast<uint64_t>(timestamp.tv_sec) * 1000000ULL
+                     + static_cast<uint64_t>(timestamp.tv_nsec) / 1000ULL;
 
     return info;
 }
