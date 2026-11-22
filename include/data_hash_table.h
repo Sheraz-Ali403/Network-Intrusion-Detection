@@ -2,6 +2,9 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <string>
+#include <vector>
+
 
 // PacketInfo is defined in pcapHandler.h.
 // A forward declaration keeps this header independent from PcapPlusPlus.
@@ -81,6 +84,42 @@ struct ConnectionInfo {
     //Used by the simplified TCP close-state logic.
     bool finAtoBSeen = false;
     bool finBtoASeen = false;
+
+    // Per-conversation alert suppression. These reset when a TCP 5-tuple
+    // starts a fresh conversation; global alert sequences do not reset.
+    bool excessivePacketsAlerted = false;
+    bool largeTransferAlerted = false;
+    bool tcpStateAlerted = false;
+    bool repeatedResetsAlerted = false;
+    bool longLivedAlerted = false;
+};
+
+enum class HashAlertType {
+    EXCESSIVE_PACKETS,
+    LARGE_DATA_TRANSFER,
+    TCP_STATE_ANOMALY,
+    REPEATED_RESETS,
+    LONG_LIVED_CONNECTION
+};
+
+// Starter thresholds for development/testing, not universal security limits.
+// A value of zero disables the corresponding detector.
+struct HashTableAlertThresholds {
+    uint64_t maxPacketsPerFlow = 100000;
+    uint64_t maxBytesPerFlow = 100ULL * 1024ULL * 1024ULL; // 100 MiB
+    uint64_t maxResetsPerFlow = 10;
+    uint64_t maxDurationUs = 30ULL * 60ULL * 1000000ULL; // 30 minutes
+    bool detectTcpStateAnomalies = true;
+};
+
+struct HashTableAlert {
+    std::string id;              // e.g. EP-000
+    HashAlertType type{};
+    std::string description;
+    dataKey flowKey{};
+    uint64_t timestampUs = 0;
+    uint64_t observedValue = 0;
+    uint64_t threshold = 0;
 };
 
 struct Node {
@@ -98,6 +137,17 @@ class HashTable {
     size_t size = 0;     //current number of stored flows
     static constexpr double LOAD_FACTOR = 0.75; // Max load factor for resizing
 
+    //Alertss
+    HashTableAlertThresholds alertThresholds{};
+    std::vector<HashTableAlert> alerts;
+
+    //Independent, monotonically increasing sequences for each alert type.
+    uint64_t excessivePacketsSequence = 0;
+    uint64_t dataTransferSequence = 0;
+    uint64_t tcpStateSequence = 0;
+    uint64_t resetSequence = 0;
+    uint64_t longConnectionSequence = 0;
+
     bool keysEqual(const dataKey& a, const dataKey& b) const;
 
     uint64_t HashValue(const dataKey& key) const;
@@ -106,11 +156,26 @@ class HashTable {
 
     void updateTCPState(ConnectionInfo& info, const PacketInfo& packet, Direction direction);
 
+    void checkFlowAlerts(const dataKey& key,
+                         ConnectionInfo& info,
+                         const PacketInfo& packet,
+                         Direction direction,
+                         TCPStates previousState,
+                         uint64_t timestampUs);
+
+    void recordAlert(HashAlertType type,
+                     const dataKey& key,
+                     uint64_t timestampUs,
+                     uint64_t observedValue,
+                     uint64_t threshold,
+                     const std::string& description);
+
 public:
-    HashTable(size_t cap = 128);
+    HashTable(size_t cap = 128, const HashTableAlertThresholds& limits = HashTableAlertThresholds{});
     ~HashTable();
 
-    void clear();
+    void clear();  // Removes flows only; alert history and ID sequences are preserved.
+    void clearAlerts(); // Clears stored alert records; ID sequences are not reset
 
     //Rule of Three: deep copy constructor and copy assignment operator.
     HashTable(const HashTable& other);
@@ -133,6 +198,10 @@ public:
     //timestampUs is optional and must be expressed in microseconds.
     //Returns false for protocols other than TCP (6) and UDP (17).
     bool processPacket(const PacketInfo& packet, uint64_t timestampUs = 0);
+
+    const std::vector<HashTableAlert>& getAlerts() const;
+    const HashTableAlertThresholds& getAlertThresholds() const;
+    void setAlertThresholds(const HashTableAlertThresholds& limits);
 
     size_t getSize() const;
     size_t getCapacity() const;

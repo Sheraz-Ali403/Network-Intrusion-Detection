@@ -4,6 +4,8 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+#include <iomanip>
+#include <sstream>
 
 //Fixed protocol numbers from the IPv4 Protocol field.
 namespace {
@@ -19,7 +21,7 @@ namespace {
     }
 }
 
-HashTable::HashTable(size_t cap) : capacity(cap), size(0){
+HashTable::HashTable(size_t cap, const HashTableAlertThresholds& limits): capacity(cap), size(0), alertThresholds(limits) {
     if(capacity == 0) {
         throw std::invalid_argument("HashTable capacity must be greater than zero");
     }
@@ -51,15 +53,23 @@ void HashTable::clear() {
 }
 
 //Deep copy constructor
-HashTable::HashTable(const HashTable& other): capacity(other.capacity), size(0){
+HashTable::HashTable(const HashTable& other)
+    : capacity(other.capacity), size(0),
+      alertThresholds(other.alertThresholds), alerts(other.alerts),
+      excessivePacketsSequence(other.excessivePacketsSequence),
+      dataTransferSequence(other.dataTransferSequence),
+      tcpStateSequence(other.tcpStateSequence),
+      resetSequence(other.resetSequence),
+      longConnectionSequence(other.longConnectionSequence)
+{
     bucket = new Node*[capacity]{};
 
     try {
         //Copy every node, including all nodes in collision chains.
-        for(size_t i = 0; i < other.capacity; ++i){
+        for (size_t i = 0; i < other.capacity; ++i) {
             Node* current = other.bucket[i];
 
-            while(current){
+            while (current) {
                 uint64_t index = HashValue(current->key) % capacity;
 
                 Node* newNode = new Node(current->key, current->info);
@@ -89,6 +99,13 @@ HashTable& HashTable::operator=(const HashTable& other) {
         std::swap(capacity, temp.capacity);
         std::swap(size, temp.size);
         std::swap(bucket, temp.bucket);
+        std::swap(alertThresholds, temp.alertThresholds);
+        std::swap(alerts, temp.alerts);
+        std::swap(excessivePacketsSequence, temp.excessivePacketsSequence);
+        std::swap(dataTransferSequence, temp.dataTransferSequence);
+        std::swap(tcpStateSequence, temp.tcpStateSequence);
+        std::swap(resetSequence, temp.resetSequence);
+        std::swap(longConnectionSequence, temp.longConnectionSequence);
     }
 
     return *this;
@@ -343,6 +360,146 @@ void HashTable::updateTCPState(ConnectionInfo& info, const PacketInfo& packet, D
         }
     }
 }
+//Alert methods
+void HashTable::recordAlert(HashAlertType type,
+                            const dataKey& key,
+                            uint64_t timestampUs,
+                            uint64_t observedValue,
+                            uint64_t threshold,
+                            const std::string& description)
+{
+    const char* prefix = nullptr;
+    uint64_t* sequence = nullptr;
+
+    switch (type) {
+        case HashAlertType::EXCESSIVE_PACKETS:
+            prefix = "EP-";
+            sequence = &excessivePacketsSequence;
+            break;
+        case HashAlertType::LARGE_DATA_TRANSFER:
+            prefix = "DT-";
+            sequence = &dataTransferSequence;
+            break;
+        case HashAlertType::TCP_STATE_ANOMALY:
+            prefix = "TS-";
+            sequence = &tcpStateSequence;
+            break;
+        case HashAlertType::REPEATED_RESETS:
+            prefix = "RC-";
+            sequence = &resetSequence;
+            break;
+        case HashAlertType::LONG_LIVED_CONNECTION:
+            prefix = "LC-";
+            sequence = &longConnectionSequence;
+            break;
+    }
+
+    if (sequence == nullptr || *sequence == std::numeric_limits<uint64_t>::max()) {
+        throw std::overflow_error("HashTable alert ID sequence exhausted");
+    }
+
+    std::ostringstream id;
+    id << prefix << std::setw(3) << std::setfill('0') << *sequence;
+
+    HashTableAlert alert{};
+    alert.id = id.str();
+    alert.type = type;
+    alert.description = description;
+    alert.flowKey = key;
+    alert.timestampUs = timestampUs;
+    alert.observedValue = observedValue;
+    alert.threshold = threshold;
+
+    // Increment only after the alert was successfully stored.
+    alerts.push_back(std::move(alert));
+    ++(*sequence);
+}
+
+// Evaluate only the flow that received this packet; never scan the whole table.
+void HashTable::checkFlowAlerts(const dataKey& key,
+                                ConnectionInfo& info,
+                                const PacketInfo& packet,
+                                Direction direction,
+                                TCPStates previousState,
+                                uint64_t timestampUs)
+{
+    const uint64_t alertTime = timestampUs != 0 ? timestampUs : info.lastSeen;
+
+    if (alertThresholds.maxPacketsPerFlow != 0 &&
+        !info.excessivePacketsAlerted &&
+        info.packetCount >= alertThresholds.maxPacketsPerFlow) {
+        recordAlert(HashAlertType::EXCESSIVE_PACKETS, key, alertTime,
+                    info.packetCount, alertThresholds.maxPacketsPerFlow,
+                    "Packet count in this flow reached the configured threshold");
+        info.excessivePacketsAlerted = true;
+    }
+
+    if (alertThresholds.maxBytesPerFlow != 0 &&
+        !info.largeTransferAlerted &&
+        info.byteCount >= alertThresholds.maxBytesPerFlow) {
+        recordAlert(HashAlertType::LARGE_DATA_TRANSFER, key, alertTime,
+                    info.byteCount, alertThresholds.maxBytesPerFlow,
+                    "Byte count in this flow reached the configured threshold");
+        info.largeTransferAlerted = true;
+    }
+
+    if (packet.protocol == TCP_PROTOCOL) {
+        // These are heuristic indicators, not full TCP conformance validation.
+        const bool contradictoryFlags =
+            (packet.syn && packet.fin) ||
+            (packet.syn && packet.rst) ||
+            (packet.fin && packet.rst);
+
+        const bool unexpectedSynAck = packet.syn && packet.ack &&
+            !(previousState == TCPStates::SYN_SENT &&
+              info.initiatorKnown &&
+              direction != info.initiatorDirection);
+
+        const bool unexpectedFin = packet.fin &&
+            !(previousState == TCPStates::ESTABLISHED ||
+              previousState == TCPStates::FIN_WAIT);
+
+        const bool packetAfterClosed = previousState == TCPStates::CLOSED &&
+            !(packet.syn && !packet.ack);
+
+        if (alertThresholds.detectTcpStateAnomalies &&
+            !info.tcpStateAlerted &&
+            (contradictoryFlags || unexpectedSynAck || unexpectedFin || packetAfterClosed)) {
+            recordAlert(HashAlertType::TCP_STATE_ANOMALY, key, alertTime,
+                        1, 1,
+                        "TCP flags or packet sequence are inconsistent with the tracked flow state");
+            info.tcpStateAlerted = true;
+        }
+
+        if (alertThresholds.maxResetsPerFlow != 0 &&
+            !info.repeatedResetsAlerted) {
+            // Saturating addition avoids wraparound in the combined RST count.
+            const uint64_t maxValue = std::numeric_limits<uint64_t>::max();
+            const uint64_t resetCount = info.rstAtoB > maxValue - info.rstBtoA
+                ? maxValue : info.rstAtoB + info.rstBtoA;
+
+            if (resetCount >= alertThresholds.maxResetsPerFlow) {
+                recordAlert(HashAlertType::REPEATED_RESETS, key, alertTime,
+                            resetCount, alertThresholds.maxResetsPerFlow,
+                            "RST count in this TCP flow reached the configured threshold");
+                info.repeatedResetsAlerted = true;
+            }
+        }
+    }
+
+    if (alertThresholds.maxDurationUs != 0 &&
+        !info.longLivedAlerted &&
+        info.firstSeen != 0 &&
+        info.lastSeen >= info.firstSeen) {
+        const uint64_t durationUs = info.lastSeen - info.firstSeen;
+        if (durationUs >= alertThresholds.maxDurationUs) {
+            recordAlert(HashAlertType::LONG_LIVED_CONNECTION, key, alertTime,
+                        durationUs, alertThresholds.maxDurationUs,
+                        "Observed flow duration reached the configured threshold");
+            info.longLivedAlerted = true;
+        }
+    }
+}
 
 //Process one parsed TCP/UDP packet and update its flow history.
 bool HashTable::processPacket(const PacketInfo& packet, uint64_t timestampUs) {
@@ -358,6 +515,7 @@ bool HashTable::processPacket(const PacketInfo& packet, uint64_t timestampUs) {
         ConnectionInfo newInfo{};
         info = insertKey(flow.key, newInfo);
     }
+    //When Convo has closed and new SYN is seen so reset the prev convo and start new one with total convo count incremented
     else if (packet.protocol == TCP_PROTOCOL &&
              info->state == TCPStates::CLOSED &&
              packet.syn && !packet.ack) {
@@ -368,8 +526,10 @@ bool HashTable::processPacket(const PacketInfo& packet, uint64_t timestampUs) {
         *info = ConnectionInfo{};
         info->totalFinishedConversations = finishedCount;
     }
+    //Remember the state before this packet so packet-order anomalies can be evaluated.
+    const TCPStates previousState = info->state;
 
-    //Update overall and directional traffic counters.
+    //Update overall both TCP and UDP and directional traffic counters.
     ++info->packetCount;
     info->byteCount += packet.packetSize;
 
@@ -409,8 +569,24 @@ bool HashTable::processPacket(const PacketInfo& packet, uint64_t timestampUs) {
         updateTCPState(*info, packet, flow.direction);
     }
 
+    //Detection is scoped to this flow only: O(1) rule checks per packet.
+    checkFlowAlerts(flow.key, *info, packet, flow.direction, previousState, timestampUs);
     return true;
 }
+
+const std::vector<HashTableAlert>& HashTable::getAlerts() const {
+    return alerts;
+}
+
+const HashTableAlertThresholds& HashTable::getAlertThresholds() const {
+    return alertThresholds;
+}
+
+void HashTable::setAlertThresholds(const HashTableAlertThresholds& limits) {
+    alertThresholds = limits;
+}
+
+//Alert Finished
 
 size_t HashTable::getSize() const {
     return size;
