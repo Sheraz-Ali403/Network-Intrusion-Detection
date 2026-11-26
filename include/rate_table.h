@@ -4,10 +4,11 @@
 #include <cstddef>
 #include <cstdint>
 
-// One bucket represents one second. Ten buckets form the rate window.
+//One bucket represents one second 
+//ten buckets form the rate window.
 inline constexpr std::size_t RATE_WINDOW_SECONDS = 10;
 
-struct PacketInfo;
+struct PacketInfo;  //from pcapHandler.h
 
 struct RateBucket {
     std::uint64_t second = 0;
@@ -17,23 +18,27 @@ struct RateBucket {
 
     std::uint64_t tcpSynCount = 0;
     std::uint64_t udpCount = 0;
+    //not implemented yet, but can be added in the future
     std::uint64_t icmpCount = 0;
 
     bool initialized = false;
 };
 
 struct RateInfo {
-    std::array<RateBucket, RATE_WINDOW_SECONDS> buckets{};
+    std::array<RateBucket, RATE_WINDOW_SECONDS> buckets{}; //size 10
 
-    // latestSecond is the newest packet timestamp seen for this source.
+    //latestSecond is the newest packet timestamp seen for this source
     std::uint64_t latestSecond = 0;
     std::uint64_t lastSeenUs = 0;
+    //time tracking 
     bool hasTimestamp = false;
 
-    // These flags suppress repeated alerts while a threshold remains exceeded.
+    //flags or exceeding thresholds
+    //Checks and remembers already flagged so no again same alert
     bool packetAlertActive = false;
     bool synAlertActive = false;
     bool udpAlertActive = false;
+    //not implemented yet
     bool icmpAlertActive = false;
 };
 
@@ -44,14 +49,16 @@ struct RateNode {
 };
 
 struct RateThresholds {
-    // A threshold of 0 disables that detector.
-    // These are starter values for testing, not universal security limits.
+    //Thresholds
+    //These are starter values for testing, not universal
     std::uint64_t maxPacketsPerWindow = 500;
     std::uint64_t maxSynPerWindow = 100;
     std::uint64_t maxUdpPerWindow = 300;
     std::uint64_t maxIcmpPerWindow = 100;
 };
 
+
+//snapshots of current rate
 struct RateSnapshot {
     std::uint64_t windowStartSecond = 0;
     std::uint64_t windowEndSecond = 0;
@@ -61,6 +68,7 @@ struct RateSnapshot {
 
     std::uint64_t tcpSynCount = 0;
     std::uint64_t udpCount = 0;
+    //
     std::uint64_t icmpCount = 0;
 };
 
@@ -68,7 +76,7 @@ struct RateResult {
     std::uint32_t sourceIP = 0;
     RateSnapshot rates;
 
-    // These booleans are true only when a new alert is triggered by this packet.
+    //gets true only when a new alert is triggered by this packet
     bool highPacketRate = false;
     bool possibleSynFlood = false;
     bool possibleUdpFlood = false;

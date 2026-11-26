@@ -1,7 +1,5 @@
 #include "rate_table.h"
-
 #include "pcapHandler.h"
-
 #include <limits>
 
 
@@ -15,7 +13,7 @@ void resetBucket(RateBucket& bucket, std::uint64_t second) {
     bucket.second = second;
     bucket.initialized = true;
 }
-} // namespace
+} //namespace
 
 RateTable::RateTable(std::size_t initialCapacity, const RateThresholds& limits)
     : bucket(nullptr),
@@ -133,8 +131,7 @@ void RateTable::updateBucket(
     }
     info.hasTimestamp = true;
 
-    // Ignore packets that are older than the active window. This also protects
-    // the ring buffer if a PCAP contains out-of-order packet timestamps.
+    // Ignore packets that are older than the active window. This also protects the ring buffer if a PCAP contains out-of-order packet timestamps.
     if (info.latestSecond >= currentSecond &&
         info.latestSecond - currentSecond >= RATE_WINDOW_SECONDS) {
         return;
